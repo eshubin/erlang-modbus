@@ -4,7 +4,7 @@
 %% @doc A way to interact with modbus devices on an ethernet network
 
 -module(modbus).
--import(crc16).
+% -import(crc16).
 
 -include("modbus.hrl").
 
@@ -38,9 +38,9 @@ generate_request_message(Request) when is_record(Request, tcp_request) ->
 	end;
 
 generate_request_message(Request) when is_record(Request, rtu_request) ->
-	Message = case Request#rtu_request.function_code of 
+	Message = case Request#rtu_request.function_code of
 		?FC_READ_HREGS ->
-			<<(Request#rtu_request.address):8, (Request#rtu_request.function_code):8, (Request#rtu_request.start):16,(Request#rtu_request.data):16>>; 
+			<<(Request#rtu_request.address):8, (Request#rtu_request.function_code):8, (Request#rtu_request.start):16,(Request#rtu_request.data):16>>;
 		?FC_READ_IREGS ->
 			<<(Request#rtu_request.address):8, (Request#rtu_request.function_code):8, (Request#rtu_request.start):16,(Request#rtu_request.data):16>>;
 		?FC_WRITE_HREGS ->
@@ -71,13 +71,13 @@ get_response_header(State, OriginalRequest) when is_record(OriginalRequest, rtu_
 	% io:format("RH C: ~w~n",[Code]),
 
 	% validate the RTU header->
-	OrigAddress = OriginalRequest#rtu_request.address,	
+	OrigAddress = OriginalRequest#rtu_request.address,
 	OrigCode = OriginalRequest#rtu_request.function_code,
 	BadCode = OrigCode + 128,
 
  	case {Address,Code} of
 		{OrigAddress,OrigCode} -> ok;
-		{OrigAddress,BadCode} -> 
+		{OrigAddress,BadCode} ->
 			{ok, [ErrorCode]} = gen_tcp:recv(State#modbus_state.sock,1,1000),
 
 			case ErrorCode of
@@ -89,7 +89,7 @@ get_response_header(State, OriginalRequest) when is_record(OriginalRequest, rtu_
 				6 -> {error, slave_device_busy};
 				_ -> {error, unknown_response_code}
 			end;
-			
+
 		{_,_} -> {error,junkResponse}
   	end.
 
@@ -99,7 +99,7 @@ get_response_data(State,OriginalRequest) when is_record(OriginalRequest, tcp_req
 get_response_data(State, OriginalRequest) when is_record(OriginalRequest, rtu_request) ->
 
 	case OriginalRequest#rtu_request.function_code of
-		?FC_WRITE_HREGS -> 
+		?FC_WRITE_HREGS ->
 			Size = 4,
 			ResponseChecksum = [OriginalRequest#rtu_request.address, OriginalRequest#rtu_request.function_code];
 		_ ->
@@ -118,7 +118,7 @@ get_response_data(State, OriginalRequest) when is_record(OriginalRequest, rtu_re
 			% io:format("~w~n",[Checksum]),
 
 			{ok,_} = check_checksum(ResponseChecksum ++ Data ++ Checksum);
-		
+
 		_ -> true
 	end,
 
@@ -149,7 +149,7 @@ check_checksum(Data) when is_list(Data) ->
 
 request_message_test() ->
 	% Modbus RTU tests
-	?assertEqual(<<1, 3, 0, 5, 0, 1, 148, 11>>, 
+	?assertEqual(<<1, 3, 0, 5, 0, 1, 148, 11>>,
 		generate_request_message(#rtu_request{address=1,function_code=?FC_READ_HREGS,start=5,data=1})),
 
 	?assertEqual(<<1, 4, 0, 10, 0, 2, 81, 201>>,
@@ -162,11 +162,10 @@ request_message_test() ->
 
 
 	% Modbus TCP tests
-	?assertEqual(<<0, 1, 0, 0, 0, 6, 1, 3, 0, 5, 0, 1>>, 
+	?assertEqual(<<0, 1, 0, 0, 0, 6, 1, 3, 0, 5, 0, 1>>,
 		generate_request_message(#tcp_request{tid=1, rtu_request=#rtu_request{address=1,function_code=?FC_READ_HREGS,start=5,data=1}})),
 
-	?assertEqual(<<0, 22, 0, 0, 0, 6, 100, 4, 0, 10, 0, 2>>, 
+	?assertEqual(<<0, 22, 0, 0, 0, 6, 100, 4, 0, 10, 0, 2>>,
 		generate_request_message(#tcp_request{tid=22, rtu_request=#rtu_request{address=100,function_code=?FC_READ_IREGS,start=10,data=2}})),
 
-	?assertError(function_not_implemented, generate_request_message(#tcp_request{tid=22, rtu_request=#rtu_request{address=11,function_code=0}})). 
-
+	?assertError(function_not_implemented, generate_request_message(#tcp_request{tid=22, rtu_request=#rtu_request{address=11,function_code=0}})).
